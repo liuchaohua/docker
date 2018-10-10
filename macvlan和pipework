@@ -60,3 +60,43 @@
         结果：可以ping通
     7、在容器内PING B虚拟机上的容器：
         可以ping通。
+        
+pipework：pipework是Docker公司工程师Jerome Petazzoni在Github上发布的名为pipework的工具。号称是容器网络的SDN解决方案，
+    可以在复杂的场景下将容器连接起来。它既支持普通的LXC容器，也支持Docker容器。
+    
+    安装:
+        下载  https://github.com/jpetazzo/pipework/archive/master.zip   
+        解压后执行  cp -p pipework-master/pipework /usr/local/bin/
+ 方法一：
+    在虚拟机A上创建容器：
+        1、docker run --net=none -itd --name=test1 -h test1 busybox /bin/sh
+        2、pipework eth0 test1 192.168.160.10/24@192.168.160.1
+    在虚拟机B上创建容器：
+        1、docker run --net=none -itd --name=test2 -h test2 busybox /bin/sh
+        2、pipework eth0 test2 192.168.160.11/24@192.168.160.1
+    
+    执行过程大概包括：
+        查看主机是否包含ens33，如果不存在就创建，向容器实例test1添加一块网卡，并配置固定IP：172.16.104.10，若test1已经有默认的路由，则删除掉，
+        将@后面的172.16.104.1设置为默认路由的网关，将test1容器实例连接到创建的ens33上。
+        
+  方法二：
+       1、在虚拟机A上创建网桥br0   具体指令： brctl addbr br0
+       2、给网桥br0绑定一个IP   具体指令： ip addr add 192.168.160.148/24 dev br0   
+       注意 192.168.160.132是虚拟机A的IP地址。 
+        该方法效果较好, 容器和宿主机互通, 但是配置的时候需要通过VNC或者串口连接(单网卡), 要断网
+
+    启动容器, pipework绑定过程和方法一相同, 这里省略
+
+    $ ip addr add 192.168.160.132/24 dev br0
+    $ ip addr del 192.168.160.132/24 dev eth0
+    $ brctl addif br0 eth0
+    $ ip route del default
+    $ ip route add default via 192.168.160.1 dev br0
+    过程中会断网, 可以写到一条命令中, 但实测过程中并不好用 (因为可能中间哪条抛错下面的就执行不了, 实测中第一次执行时候第四条抛错)
+
+    ip addr add 192.168.160.132/24 dev br0;\
+    ip addr del 192.168.160.132/24 dev eth0;\
+    brctl addif br0 eth0;\
+    ip route del default;\
+    ip route add default via 192.168.160.1 dev br0;\
+        
