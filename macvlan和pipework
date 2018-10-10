@@ -1,0 +1,46 @@
+介绍：
+    macvlan是Linux操作系统内核提供的网络虚拟化方案之一，更准确的说法是网卡虚拟化方案。它可以为一张物理网卡设置多个mac地址，
+相当于物理网卡施展了分身之术，由一个变多个，同时要求物理网卡打开混杂模式。针对每个mac地址，都可以设置IP地址，本来是一块物理网卡连接到交换机，
+现在是多块虚拟网卡连接到交换机。
+
+准备工作：
+    1、vmvare12创建两个虚拟机，操作系统ubuntu14， 64位。ip分别是：
+    192.168.160.132（以下统称A虚拟机）
+    192.168.160.133（以下统称B虚拟机）
+    2、安装docker18.06.1-ce版。
+       具体步骤见  https://blog.csdn.net/javahuazaili/article/details/82990987
+    
+开始：
+    0、分别将A、B两台虚拟机的网卡为混杂模式：
+        [root@ubuntu ~]# ip link set eth0 promisc on
+        [root@ubuntu ~]# ifconfig
+        eth0      Link encap:Ethernet  HWaddr 00:0c:29:ba:ad:82  
+          inet addr:192.168.160.132  Bcast:192.168.160.255  Mask:255.255.255.0
+          inet6 addr: fe80::20c:29ff:feba:ad82/64 Scope:Link
+          UP BROADCAST RUNNING PROMISC MULTICAST  MTU:1500  Metric:1
+          RX packets:219063 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:76075 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:261281226 (261.2 MB)  TX bytes:5110580 (5.1 MB)
+
+        可以看到有PROMISC字样，即设置成功。
+        
+    1、新建macvlan网络
+        docker network create -d macvlan --subnet=192.168.160.0/24 --gateway192.168.160.1 -o parent=eth0 mynet
+        参数说明： 
+        -d macvlan: 创建macvlan网络，使用macvlan网络驱动 
+        --subnet: 指定宿主机所在网段 
+        --gateway: 指定宿主机所在网段网关, 必须是真实存在的网关,否则容器无法路由 
+        -o parent: 继承指定网段的网卡
+        
+    2、在192.168.160.132上创建一个IP为192.168.160.11的docker容器。
+        docker run --net=mynet --ip=192.168.160.10 -itd --name=mynginx docker.io/nginx bash
+        参数说明：
+            --net  macvlan的名字
+            --ip   为容器分配的IP
+            --name  容器名
+    3、在192.168.160.133上创建一个IP为192.168.160.11的docker容器。
+        docker run --net=mynet --ip=192.168.160.11 -itd --name=mynginx docker.io/nginx bash
+        
+    4、在容器内ping虚拟机A的IP
+        
